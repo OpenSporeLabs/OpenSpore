@@ -458,3 +458,6 @@ tmp/
 # NOTE: analysis/ IS tracked (generated evidence, incl. analysis/strings/*.txt and
 # analysis/shots/*.png). assets/ IS tracked (our own icon). Do not widen the patterns above
 # to cover either.
+
+# SPORE installation
+SPORE/
