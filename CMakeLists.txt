@@ -355,6 +355,23 @@ if(MSVC)
   endif()
 endif()
 
+# ---------------------------------------------------------------------------
+# EXPERIMENTAL Linux -> Windows x86 cross-build (build-tools/mingw-w64-i686.cmake).
+# The officially supported configuration stays Visual Studio 2022 / Win32 / Debug
+# under MSVC; this block is inert for that compiler, so the MSVC link line, entry
+# point and flags are byte-for-byte unchanged. Compilation here does NOT imply
+# Proton runtime parity - see RESUME.md / MEMORY.md for the tested command.
+# ---------------------------------------------------------------------------
+if(MINGW)
+  # main.cpp defines wWinMain. MinGW's default GUI startup (crtexewin.o) expects the
+  # ANSI WinMain, so linking fails with "undefined reference to `WinMain@16'"; the
+  # Unicode startup object (expecting _wWinMain@16) is selected by -municode.
+  target_link_options(OpenSpore PRIVATE -municode)
+  # render/imgfile.cpp relies on MSVC's `#pragma comment(lib, "gdiplus.lib")`, which
+  # GCC ignores. Link GDI+ explicitly for this toolchain only.
+  target_link_libraries(OpenSpore PRIVATE gdiplus)
+endif()
+
 # d3d9 + the Win32 surface the original itself imports (see analysis/recon.md §Imports).
 # NOTE: no d3dx9 - the June 2010 DX SDK is not installed here and we call no D3DX function.
 # The original imports 9 d3dx9_27 functions; that dependency returns with the RW bridge.
