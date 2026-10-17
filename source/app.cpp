@@ -426,8 +426,21 @@ int run(HINSTANCE inst, HINSTANCE, LPWSTR cmdline_wide, int) {
 #else
     const char* arch = "x86";
 #endif
-    LOG_INFO("app", "build: %s, console=%s, MSVC %d", arch,
-             GetConsoleWindow() ? "attached" : "none", _MSC_VER);
+    // Compiler identity for the boot log. MSVC reports _MSC_VER exactly as before; the
+    // GCC/MinGW branch exists so the experimental cross-build (build-tools/) prints a real
+    // version instead of failing to compile on the undefined _MSC_VER macro.
+#if defined(_MSC_VER)
+    const char* compiler = "MSVC";
+    const int   compiler_ver = _MSC_VER;
+#elif defined(__GNUC__)
+    const char* compiler = "GCC";
+    const int   compiler_ver = __GNUC__ * 100 + __GNUC_MINOR__;
+#else
+    const char* compiler = "unknown";
+    const int   compiler_ver = 0;
+#endif
+    LOG_INFO("app", "build: %s, console=%s, %s %d", arch,
+             GetConsoleWindow() ? "attached" : "none", compiler, compiler_ver);
 
     // 2. command line. wWinMain's `cmdline_wide` is lpCmdLine (NO program name); the
     // GetCommandLineW() fallback HAS it. Say which, or the first argument is dropped.

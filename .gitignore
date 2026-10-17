@@ -436,6 +436,10 @@ refs/
 # CMake build tree (includes build/bin/<Config>/OpenSpore.exe + .pdb + runtime logs).
 build/
 
+# Experimental Linux -> Windows MinGW cross-build tree (see analysis/mingw-cross-build.md).
+# The hand-written toolchain file lives in build-tools/ and is source; this is only its output.
+build-mingw32/
+
 # Runtime artifacts, wherever they land (the app writes them into its cwd).
 OpenSpore.log
 OpenSpore.crash.log
