@@ -1,171 +1,203 @@
 # OpenSpore
 
-### Spore: Galactic Adventures — от бинарника к самостоятельной игре
+### Spore: Galactic Adventures — from a binary to a standalone game
 
-**Windows · x86 · Debug · C++20 · Direct3D 9 · CMake / MSVC**
+**Windows · x86 · Debug · C++20 · Direct3D 9 · CMake / MSVC · experimental MinGW-w64 cross-build**
 
-OpenSpore — самостоятельная реимплементация **Spore: Galactic Adventures** на основе
-дизассемблирования GA-бинарника и проверки shipped data. Цель — восстановить путь от `Main`
-до полностью играбельной игры, а не только открыть её ресурсы.
+OpenSpore is a standalone reimplementation of **Spore: Galactic Adventures**, built from
+disassembly of the GA binary and verification against shipped data. The goal is to reconstruct the
+path from `Main` to a fully playable game, not merely to open its resources.
 
-> **Сейчас:** приложение загружается, читает игровые пакеты, показывает настоящий launcher
-> из SPUI и атласов, обрабатывает выбор видимой плитки и переходит в нужное состояние.
-> **Но:** редакторы и игровые стадии ещё не работают. Это исследовательская сборка, не замена Spore.
+> **Right now:** the application boots, reads the game packages, shows the real launcher
+> from SPUI and atlases, handles selection of a visible tile and transitions into the right state.
+> **But:** the editors and gameplay stages do not work yet. This is a research build, not a Spore replacement.
 >
-> Последняя сверка: **15 октября 2026**. [Текущий статус](PROGRESS.md) ·
-> [Чеклист функций](analysis/features.md) · [Доказательства](VERIFY.md) · [План продолжения](RESUME.md)
+> Last verification: **October 15, 2026**. [Current status](PROGRESS.md) ·
+> [Feature checklist](analysis/features.md) · [Evidence](VERIFY.md) · [Continuation plan](RESUME.md)
 
-Порядок источников, pinned revisions внешних OpenSpore-репозиториев и правила их клонирования
-собраны в [REFS.md](REFS.md); связанные авторы и attribution notes — в
+The ordering of sources, pinned revisions of the external OpenSpore repositories and the rules for
+cloning them are collected in [REFS.md](REFS.md); related authors and attribution notes are in
 [CONTRIBUTORS.md](CONTRIBUTORS.md).
 
-## Уже не просто прямоугольники
+## No longer just rectangles
 
-![Настоящий E3LaunchScreen: логотип Spore, иконки стадий и плитки редакторов, отрисованные OpenSpore](analysis/shots/spui_e3launch_uv.png)
+![The real E3LaunchScreen: the Spore logo, stage icons and editor tiles, rendered by OpenSpore](analysis/shots/spui_e3launch_uv.png)
 
-Это **capture нашего `OpenSpore.exe`**, а не макет и не окно оригинальной игры.
-Экран выбирается командой `uilayout -load E3LaunchScreen` из игрового состояния `DevLauncher`.
-Рендерер использует реальную иерархию окон, UV-области атласов и кадры состояний кнопок.
-Светлые рамки и диагностические подписи пока намеренно оставлены.
+This is a **capture of our own `OpenSpore.exe`**, not a mock-up and not a window of the original game.
+The screen is selected by the `uilayout -load E3LaunchScreen` command from the `DevLauncher` game
+state. The renderer uses the real window hierarchy, atlas UV regions and button state frames.
+The light frames and diagnostic labels are still left in intentionally.
 
-**Проверенная цепочка:**
+**Verified chain:**
 
 ```text
-boot → DevLauncher → E3LaunchScreen → видимая плитка → CreatureEditor
-                                                       └─ состояние есть; редактор ещё не реализован
+boot → DevLauncher → E3LaunchScreen → visible tile → CreatureEditor
+                                                       └─ state exists; editor not implemented yet
 ```
 
-Детали и GA-адреса: [SPUI binary](analysis/spui-binary.md) · [drawables](analysis/spui-drawables.md).
+Details and GA addresses: [SPUI binary](analysis/spui-binary.md) · [drawables](analysis/spui-drawables.md).
 
-Следующий участок Main-пути тоже подключён: `Main → GalaxyGameEntry` показывает подтверждённый
-GA-кодом primary layout `GlobalUIGGE-9`. Это пока **почти пустой диагностический UI без галактики**,
-zoom-панелей и runtime-контроллера, не готовый экран выбора игры.
-[Разбор и ограничения](analysis/galaxy-entry.md) · [capture](analysis/shots/gge_primary_ui.png).
-Разобран также [Intro handler](analysis/gge-intro.md): C++-модель post-title gate проверяет
-условия MoviePlayer/DBCheck. В runtime пока нет этих сервисов, поэтому показано явное ожидание,
-а не фиктивная готовность галактики.
+The next stretch of the Main path is connected too: `Main → GalaxyGameEntry` shows the primary layout
+`GlobalUIGGE-9`, confirmed by GA code. This is still an **almost empty diagnostic UI without a
+galaxy**, zoom panels and a runtime controller, not a ready game-selection screen.
+[Analysis and limitations](analysis/galaxy-entry.md) · [capture](analysis/shots/gge_primary_ui.png).
+The [Intro handler](analysis/gge-intro.md) is analysed as well: the C++ model of the post-title gate
+checks MoviePlayer/DBCheck conditions. Those services do not exist in the runtime yet, so an explicit
+wait is shown, not a fake galaxy-ready state.
 
-## Что работает — и где граница
+## What works — and where the boundary lies
 
-| Область | Реализовано и проверено | Ещё не готово |
+| Area | Implemented and verified | Not ready yet |
 |---|---|---|
-| Запуск | x86 Debug, окно, консоль/лог, **10/10** boot markers, capture и fault-tolerance harness | x64 и выпуск для обычных игроков |
-| Пакеты | **57/57 DBPF**, **150 945** записей; RefPack; CLI-распаковка; вложенные пакеты | запись/repack, полная оригинальная приоритизация ресурсов |
-| SPUI | **748/748** файлов до EOF, **93 726** объектов, **22 384** окна, **20 659** связей Children; общий ancestor Clip для picking/render | WinProcs, динамическая раскладка/Z-порядок, общий command dispatcher |
-| UI art | UV и логические размеры Image; None-tiling ImageDrawable; нетайловые Standard/Radio; scale/alignment | tiling, outline/shadow, Dialog pieces и полный event lifecycle кнопок |
-| Текст | locale-таблицы, в том числе вложенные; **1 384 / 1 426** caption refs разрешаются | оригинальный шрифтовой renderer, полный Unicode/layout |
-| Модели | поддерживаемый subset `gmdl`, UV, `raster` DXT1/DXT5/raw; галерея настоящих моделей | полноценные RW4, материалы, анимация и игровой мир |
-| Навигация | видимый клик `(311,550)` → `CreatureEditor [0x022D9E01]` | сам Creature Editor и playable stages |
+| Startup | x86 Debug, window, console/log, **10/10** boot markers, capture and fault-tolerance harness | x64 and shipping to regular players |
+| Packages | **57/57 DBPF**, **150 945** records; RefPack; CLI unpacking; nested packages | writing/repack, full original resource prioritisation |
+| SPUI | **748/748** files to EOF, **93 726** objects, **22 384** windows, **20 659** Children links; shared ancestor Clip for picking/render | WinProcs, dynamic layout/Z-order, shared command dispatcher |
+| UI art | UV and logical Image sizes; None-tiling ImageDrawable; non-tiling Standard/Radio; scale/alignment | tiling, outline/shadow, Dialog pieces and the full button event lifecycle |
+| Text | locale tables, including nested ones; **1 384 / 1 426** caption refs resolve | the original font renderer, full Unicode/layout |
+| Models | supported `gmdl` subset, UV, `raster` DXT1/DXT5/raw; gallery of real models | full RW4, materials, animation and the game world |
+| Navigation | visible click `(311,550)` → `CreatureEditor [0x022D9E01]` | the Creature Editor itself and playable stages |
 
 <details>
-<summary><strong>Ранее достигнуто: модели и их текстуры</strong></summary>
+<summary><strong>Earlier achievement: models and their textures</strong></summary>
 
-![Loader с инвентарём игровых пакетов и четырьмя текстурированными моделями](analysis/shots/model_grid.png)
+![Loader with an inventory of game packages and four textured models](analysis/shots/model_grid.png)
 
-Это отдельная диагностическая галерея. Она подтверждает чтение и отрисовку поддерживаемых ассетов,
-**не** игровую симуляцию или полноту `gmdl`/RenderWare. Подробности: [форматы](analysis/formats.md).
+This is a separate diagnostic gallery. It confirms reading and rendering of supported assets, **not**
+game simulation or completeness of `gmdl`/RenderWare. Details: [formats](analysis/formats.md).
 
 </details>
 
-## Прогресс без «игра готова на 80%»
+## Progress without "the game is 80% done"
 
-![Чеклист OpenSpore: точные количества done, partial и todo, отдельно engine/data, UI, gameplay, tooling и platform](analysis/shots/reverse_map.png)
+![OpenSpore checklist: exact done, partial and todo counts, engine/data, UI, gameplay, tooling and platform shown separately](analysis/shots/reverse_map.png)
 
-Каждая клетка — **один пункт нашего чеклиста**, а не функция бинарника и не одинаковый объём работы.
-Открытое поле заголовка, готовый диагностический инструмент и игровая стадия имеют разную сложность.
-Навигация UI отделена от gameplay: переход в редактор не делает редактор готовым.
+Each cell is **one item of our checklist**, not a function of the binary and not an equal amount of
+work. An open header field, a finished diagnostic tool and a game stage have different complexity.
+UI navigation is separated from gameplay: transitioning into an editor does not make the editor ready.
 
-В [полном списке](analysis/features.md) есть статусы, границы и ссылки на evidence.
-Взвешенный индекс `(done + 0.5 × partial) / total` — лишь вспомогательная метрика чеклиста,
-**не процент готовности игры, покрытия кода или оценка оставшегося времени**.
+The [full list](analysis/features.md) has statuses, boundaries and evidence links. The weighted index
+`(done + 0.5 × partial) / total` is only a supporting checklist metric, **not a percentage of game
+completion, code coverage or an estimate of the remaining work**.
 
 ```powershell
 python tools/feature_map.py          # PNG + Markdown + machine-readable stats
-python tools/feature_map.py --check  # проверка актуальности без перезаписи
+python tools/feature_map.py --check  # check freshness without rewriting
 ```
 
-Источник: [`analysis/features.json`](analysis/features.json). Результаты:
-[`features.md`](analysis/features.md), [`features_stats.json`](analysis/features_stats.json), PNG выше.
-Дата на картинке — дата сверки исходного списка, а не просто дата запуска скрипта.
+Source: [`analysis/features.json`](analysis/features.json). Results:
+[`features.md`](analysis/features.md), [`features_stats.json`](analysis/features_stats.json), the PNG
+above. The date in the image is the verification date of the source list, not just the date the script
+was run.
 
-## Сборка и запуск
+## Building and running
 
-### Нужно
+### Requirements
 
-- Windows и Visual Studio 2022 / Build Tools с **Desktop development with C++** и Windows SDK.
-- CMake 3.25+, генератор **Win32**, конфигурация **Debug**.
-- Собственные легально полученные данные Spore + Galactic Adventures. Бинарники и `.package`
-  в Git не включены; `.exe` оригинала нужен для исследования, а не для запуска нашей программы.
-- Python 3.11+ для исследовательских инструментов; **Pillow** для прогресс-картинки.
-  Сама C++-сборка Python не требует.
+- Windows and Visual Studio 2022 / Build Tools with **Desktop development with C++** and the Windows SDK.
+- CMake 3.25+, the **Win32** generator, the **Debug** configuration.
+- Your own legally obtained Spore + Galactic Adventures data. The binaries and `.package` files are not
+  included in Git; the original `.exe` is needed for research, not to run our program.
+- Python 3.11+ for the research tools; **Pillow** for the progress image.
+  The C++ build itself does not require Python.
 
 ```powershell
-# Из корня репозитория
+# From the repository root
 cmake -S . -B build -G "Visual Studio 17 2022" -A Win32 -DCMAKE_BUILD_TYPE=Debug
 cmake --build build --config Debug --target OpenSpore spui_verify pkg_lifetime_verify overlay_clip_verify mode_ui_verify gge_intro_verify gge_dbcheck_verify gge_catalog_verify starsdb_verify starsdb_inspect starsdb_links_verify starsdb_context_verify starsdb_context_inspect starsdb_dbpf_verify starsdb_dbpf_inspect starsdb_postload_verify save_header_verify save_header_inspect planet_record_verify gge_star_present_verify gge_star_instance_verify gge_star_phase1_verify gge_image_verify gge_animated_verify gge_star_lifecycle_verify gge_streaming_image_verify gge_star_scene_verify gge_star_transition_verify gge_star_input_verify gge_catalog_snapshot_inspect
 ```
 
-Расположение данных рядом с собранным executable:
+Data layout next to the built executable:
 
 ```text
 build/bin/Debug/
   OpenSpore.exe
-  Data/                 # базовые .package, Locale/<lang>/, Config/
-  DataEP1/              # пакеты и Config Galactic Adventures
-  UserData/             # создаётся приложением
+  Data/                 # base .package files, Locale/<lang>/, Config/
+  DataEP1/              # Galactic Adventures .package files and Config
+  UserData/             # created by the application
 ```
 
-Данные нужны в их собственной структуре; **не** переименовывайте `.package` в `.package.big`.
-Числа в тестах относятся к конкретному проверенному набору из 57 пакетов, а не к любой установке.
+The data must keep its own structure; do **not** rename `.package` to `.package.big`. The numbers in
+the tests refer to a specific verified set of 57 packages, not to any installation.
 
 ```powershell
 cd build/bin/Debug
 
-# Настоящий launcher; закройте окно вручную
+# The real launcher; close the window manually
 .\OpenSpore.exe -w -devDirs -state:DevLauncher
 
-# Короткий unattended-прогон со screenshot
+# Short unattended run with a screenshot
 .\OpenSpore.exe -w -devDirs -state:DevLauncher -quitAfter 30 -capture launcher.bmp -captureAfter 20
 
-# Регрессия видимого перехода; редактор после перехода пока не работает
+# Regression of the visible transition; the editor does not work after the transition yet
 .\OpenSpore.exe -w -devDirs -state:DevLauncher -quitAfter 18 -exec spui:-click,311,550
 
-# Main -> GalaxyGameEntry: только подтверждённый primary UI subset, без симуляции галактики
+# Main -> GalaxyGameEntry: only the confirmed primary UI subset, no galaxy simulation
 .\OpenSpore.exe -w -devDirs -state:Main -quitAfter 30 -capture gge.bmp -captureAfter 20
 ```
 
-`-quitAfter` задаётся **в кадрах**, не секундах. Для автоматических запусков задавайте его явно.
-Логи каждой сессии находятся в `build/bin/Debug/logs/` и имеют timestamp/PID в имени. Старый
-`OpenSpore.log` может остаться как история прежних запусков. Batch-файлы и режимы собраны в
+`-quitAfter` is given **in frames**, not seconds. For automated runs, always pass it explicitly.
+Each session's logs live in `build/bin/Debug/logs/` and carry a timestamp/PID in the name. The old
+`OpenSpore.log` may remain as the history of previous runs. Batch files and modes are collected in
 [local launch modes](analysis/launch-modes.md).
 
-Для supplementary static/deobfuscated string extraction есть [FLOSS workflow](analysis/floss.md):
-`python tools/floss_dump.py` пишет JSON в `analysis/strings/` и отключает cache.
+For supplementary static/deobfuscated string extraction there is a [FLOSS workflow](analysis/floss.md):
+`python tools/floss_dump.py` writes JSON into `analysis/strings/` and disables the cache.
 
-Для PyGhidra используй [bounded Ghidra runner](analysis/ghidra-runner.md): по умолчанию 120 секунд,
-heartbeat в лог, graceful stop и hard-kill только после grace period. Для большой фичи deadline
-задаётся явно через `--timeout 600` или больше.
+For PyGhidra use the [bounded Ghidra runner](analysis/ghidra-runner.md): 120 seconds by default, a
+heartbeat into the log, graceful stop and hard-kill only after the grace period. For a large feature the
+deadline is set explicitly via `--timeout 600` or more.
 
 ### Debug Cheat Console
 
-В Debug-сборке **Ctrl+Shift+C** открывает не список режимов, а command-entry окно. Вводите команды
-с клавиатуры, **Enter** выполняет их, **Up/Down** листает историю, **Esc** возвращает предыдущий
-state. Начните с `help`, затем попробуйте `state -list`, `state -next`, `state DevLauncher`,
-`cfg -list`, `txt -ambig`, `levels -unlock` или `quit`. Последняя команда пока честно сообщает,
-что native level service не подключён, и не меняет saves.
+In a Debug build **Ctrl+Shift+C** opens a command-entry window, not a list of modes. Type commands on
+the keyboard, **Enter** executes them, **Up/Down** scrolls the history and **Esc** returns to the
+previous state. Start with `help`, then try `state -list`, `state -next`, `state DevLauncher`,
+`cfg -list`, `txt -ambig`, `levels -unlock` or `quit`. The last command honestly reports for now that
+no native level service is connected, and it does not change saves.
 
-В GA native command registry отдельно наблюдаются `history`, `clear` и
-`levels -unlockAdventures` (`Unlocks all Maxis adventures`); в OpenSpore они пока остаются
-явными host-boundaries и не должны восприниматься как выполненные cheat services.
+In the GA native command registry, `history`, `clear` and `levels -unlockAdventures`
+(`Unlocks all Maxis adventures`) are observed separately; in OpenSpore they remain explicit host
+boundaries for now and must not be read as implemented cheat services.
 
-Это host-реконструкция через наш command registry. Исторический Beta README описывает Cheat Console
-и отдельный in-window shortcut Ctrl+Shift+Alt+C; GA `UI/DebugConsole` уже найден и анализируется,
-но native creation/parenting/dispatch chain ещё не объявлена восстановленной. Подробнее:
-[Debug Cheat Console](analysis/debug-menu.md).
+This is a host reconstruction through our command registry. The historical Beta README describes the
+Cheat Console and a separate in-window shortcut Ctrl+Shift+Alt+C; GA `UI/DebugConsole` has already been
+found and is being analysed, but the native creation/parenting/dispatch chain is not yet declared
+recovered. More: [Debug Cheat Console](analysis/debug-menu.md).
 
-### Полные проверки
+### Linux (experimental MinGW-w64 cross-build)
 
-Из корня репозитория:
+OpenSpore can also be built from Linux as a Windows PE32/i386 executable using the MinGW-w64 x86 cross
+toolchain. This is **Linux-hosted cross-compilation of a Windows target, not a native Linux port**: the
+output is a Windows `.exe` and the Win32/Direct3D 9 dependency is unchanged. Running it under
+Wine/Proton is optional smoke-test evidence only. The MSVC build above remains the officially supported
+configuration; every source/CMake delta for the cross-build is inert for MSVC.
+
+Requirements: `i686-w64-mingw32-g++` (GCC) and `i686-w64-mingw32-windres`, CMake 3.25+ and Ninja.
+
+```bash
+cmake -S . -B build-mingw32 -G Ninja \
+      -DCMAKE_TOOLCHAIN_FILE=build-tools/mingw-w64-i686.cmake \
+      -DCMAKE_BUILD_TYPE=Debug
+cmake --build build-mingw32 --target OpenSpore
+# output: build-mingw32/bin/Debug/OpenSpore.exe
+```
+
+The verification targets cross-compile too, for example:
+
+```bash
+cmake --build build-mingw32 --target \
+  spui_verify mode_ui_verify starsdb_verify starsdb_links_verify starsdb_context_verify \
+  starsdb_dbpf_verify starsdb_postload_verify save_header_verify planet_record_verify \
+  pkg_lifetime_verify overlay_clip_verify
+```
+
+The `.exe` is dynamically linked: copy `libgcc_s_dw2-1.dll`, `libstdc++-6.dll` and
+`libwinpthread-1.dll` (from `/usr/i686-w64-mingw32/bin/`) next to it, alongside the UCRT. Measured
+toolchain versions, evidence and limits: [analysis/mingw-cross-build.md](analysis/mingw-cross-build.md).
+
+### Full checks
+
+From the repository root:
 
 ```powershell
 $fixtures = Join-Path $env:TEMP 'OpenSpore-spui-fixtures'
@@ -229,9 +261,9 @@ The detailed counts, commands and evidence links live in [PROGRESS.md](PROGRESS.
 [feature ledger](analysis/features.md). This separation keeps a parser check from looking like a
 claim that the corresponding game subsystem is finished.
 
-### Полезный CLI
+### Useful CLI
 
-Из `build/bin/Debug`:
+From `build/bin/Debug`:
 
 ```powershell
 .\OpenSpore.exe -headless -devDirs -quitAfter 8 -exec state:-list
@@ -240,41 +272,42 @@ claim that the corresponding game subsystem is finished.
 .\OpenSpore.exe -headless -devDirs -quitAfter 8 -exec pkg:-unpack,all,C:\SporeDump,gmdl
 ```
 
-Поддерживаемые raster экспортируются в BMP, gmdl — в OBJ с парной текстурой/MTL;
-неподдерживаемые варианты не становятся автоматически пригодными моделями. `-headless` не создаёт
-окно и D3D-устройство. Путь вывода выбирайте самостоятельно: распаковка может занимать много места.
+Supported rasters are exported to BMP, `gmdl` to OBJ with a paired texture/MTL; unsupported variants do
+not automatically become usable models. `-headless` creates no window and no D3D device. Choose the
+output path yourself: unpacking can take a lot of space.
 
-## Как ведётся реверс
+## How the reverse engineering is done
 
-1. **Адресный oracle — только GA-unpacked:** `refs/bins/ReleaseGA/SporeApp.exe.unpacked.exe`.
-2. Инструкции/декомпиляция → проверка shipped data → ограниченная реализация → тест/capture.
-3. Persistent Ghidra и REA используются для binary evidence; результаты сохраняются в `analysis/audit/`.
-4. Beta EXE/PDB — семантический ориентир, **не источник GA-адресов**.
-5. Наблюдения, гипотезы и наши presentation policies обозначаются отдельно.
+1. **Address oracle — only GA-unpacked:** `refs/bins/ReleaseGA/SporeApp.exe.unpacked.exe`.
+2. Instructions/decompilation → verification against shipped data → limited implementation → test/capture.
+3. Persistent Ghidra and REA are used for binary evidence; results are saved under `analysis/audit/`.
+4. The Beta EXE/PDB is a semantic reference, **not a source of GA addresses**.
+5. Observations, hypotheses and our presentation policies are labelled separately.
 
-Необходимые инструкции: [исходный brief](PROMPT.md), [field guide](reimplementation-field-guide.md),
-[toolchain](analysis/toolchain-rea.md). Границы регистра функций объяснены в
-[functions.md](analysis/functions.md): ручной каталог **не является** полной оценкой покрытия бинарника.
+Required reading: [original brief](PROMPT.md), [field guide](reimplementation-field-guide.md),
+[toolchain](analysis/toolchain-rea.md). The boundaries of the function register are explained in
+[functions.md](analysis/functions.md): the manual catalogue is **not** a complete estimate of the
+binary's coverage.
 
-## Документация и следующий шаг
+## Documentation and the next step
 
-| Документ | Для чего |
+| Document | Purpose |
 |---|---|
-| [PROGRESS.md](PROGRESS.md) | текущие возможности, ограничения и повторяемые проверки |
-| [RESUME.md](RESUME.md) | короткий hand-off и ближайшие задачи |
-| [VERIFY.md](VERIFY.md) | evidence ledger: адреса, тип доказательства, опровержения |
-| [analysis/README.md](analysis/README.md) | навигация по исследованиям, генераторам и архивам |
-| [MEMORY.md](MEMORY.md) | устойчивые выводы и ловушки; старые секции явно исторические |
-| [IDEAS.md](IDEAS.md) | roadmap, отложенные идеи и опровергнутые гипотезы |
-| [HISTORY.md](HISTORY.md) | хронология: что проверялось в тот момент, не текущий статус |
+| [PROGRESS.md](PROGRESS.md) | current capabilities, limitations and repeatable checks |
+| [RESUME.md](RESUME.md) | a short hand-off and the immediate tasks |
+| [VERIFY.md](VERIFY.md) | evidence ledger: addresses, evidence type, refutations |
+| [analysis/README.md](analysis/README.md) | navigation of the research, generators and archives |
+| [MEMORY.md](MEMORY.md) | durable conclusions and traps; older sections are explicitly historical |
+| [IDEAS.md](IDEAS.md) | roadmap, deferred ideas and refuted hypotheses |
+| [HISTORY.md](HISTORY.md) | chronology: what was verified at the time, not the current status |
 
-Renderer clipping уже согласован с hit testing в текущей presentation policy. Ближайший путь:
-недостающие drawable/event ветки, затем `GalaxyGameEntry` и поведение `AppMode`.
-Подробный план — в [RESUME.md](RESUME.md).
+Renderer clipping is already aligned with hit testing in the current presentation policy. The nearest
+path: the missing drawable/event branches, then `GalaxyGameEntry` and `AppMode` behaviour. The detailed
+plan is in [RESUME.md](RESUME.md).
 
-## Происхождение материалов
+## Provenance of materials
 
-Исследовательский проект, не связанный с EA/Maxis и не одобренный ими. Оригинальные executable,
-PDB и игровые пакеты не включены в репозиторий. В документации есть captures с игровым artwork и
-статические фрагменты анализа; это не утверждение о владении контентом EA и не лицензия на него.
-Иконка `assets/OpenSpore.ico` — предоставленная пользователем работа для проекта.
+A research project, not affiliated with or endorsed by EA/Maxis. The original executables, PDBs and
+game packages are not included in the repository. The documentation contains captures with game
+artwork and static fragments of analysis; this is not a claim of ownership of EA content and not a
+licence for it. The `assets/OpenSpore.ico` icon is user-provided work for the project.
