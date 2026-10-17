@@ -35,6 +35,21 @@ point. [Full historical notebook](docs/archive/MEMORY-2026-10-15.md) is retained
 Deep evidence: [binary SPUI](analysis/spui-binary.md), [drawables](analysis/spui-drawables.md),
 [locale](analysis/text-locale.md), [formats](analysis/formats.md), [current VERIFY](VERIFY.md).
 
+## Experimental Linux -> Windows MinGW cross-build (2026-10-17)
+
+- **Not officially supported.** Supported config stays MSVC / Visual Studio 2022 / Win32 / Debug.
+  Recipe: [analysis/mingw-cross-build.md](analysis/mingw-cross-build.md); toolchain
+  `build-tools/mingw-w64-i686.cmake`; output `build-mingw32/` (gitignored).
+- GCC 16.2.0 `i686-w64-mingw32-g++`; the `OpenSpore` target and the selected verification targets
+  in the recipe cross-build and link. Two `if(MINGW)` deltas in `CMakeLists.txt`: `-municode` (our
+  `wWinMain` needs the Unicode CRT startup; the default startup wants ANSI `WinMain`) and `gdiplus`
+  (MSVC's `#pragma comment(lib, ...)` is invisible to GCC). `app.cpp` printed `_MSC_VER`
+  unconditionally; now a portable compiler string with identical MSVC output.
+- **Compilation is not runtime parity.** Smoke test only: Wine 11.19 and Proton 9.0 (DXVK) both
+  reached 13 boot markers and loaded all 60 states from the EP1 package. No native Linux port and no
+  runtime-parity claim.
+- **MSVC was not built on the Linux host** (no `cl.exe`/`msbuild`); MSVC stays the supported path.
+
 ## Do not repeat these mistakes
 
 1. **A plausible log line is not a consequence.** `queued goto` once never executed. Verify the
